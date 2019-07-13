@@ -29,18 +29,13 @@ type alias RegisterForm =
     }
 
 
+type alias Input =
+    { requiredCheck : Bool, value : String }
+
+
 inputEmpty : Input
 inputEmpty =
-    Input ""
-
-
-type Input
-    = Input String
-
-
-inputToString : Input -> String
-inputToString (Input v) =
-    v
+    Input False ""
 
 
 type alias Goat =
@@ -79,13 +74,13 @@ type Error
 required : err -> Decoder String err a -> Decoder Input err a
 required err d =
     Decoder.with <|
-        \(Input a) ->
-            case a of
+        \{ requiredCheck, value } ->
+            case value of
                 "" ->
                     Decoder.fail err
 
                 _ ->
-                    Decoder.lift inputToString d
+                    Decoder.lift .value d
 
 
 ageDecoder_ : Decoder String AgeError Age
@@ -117,7 +112,7 @@ ageErrorField err =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { registerForm =
-            { age = Input "1"
+            { age = inputEmpty
             }
       , pageState = Registering
       }
@@ -132,14 +127,50 @@ init _ =
 
 
 type Msg
-    = NoOp
+    = UpdateAge String
+    | BlurAge
+    | SubmitForm
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        { registerForm } =
+            model
+    in
     case msg of
-        NoOp ->
-            ( model, Cmd.none )
+        UpdateAge age ->
+            let
+                newRegisterForm =
+                    { registerForm | age = Input registerForm.age.requiredCheck age }
+            in
+            ( { model | registerForm = newRegisterForm }, Cmd.none )
+
+        BlurAge ->
+            let
+                newRegisterForm =
+                    { registerForm | age = Input True registerForm.age.value }
+            in
+            ( { model | registerForm = newRegisterForm }, Cmd.none )
+
+        SubmitForm ->
+            let
+                newRegisterForm =
+                    { registerForm
+                        | age = Input True registerForm.age.value
+                    }
+
+                hasError =
+                    not <| List.isEmpty <| Decoder.errors decoder registerForm
+
+                newPageState =
+                    if hasError then
+                        Registering
+
+                    else
+                        ShowGoats
+            in
+            ( { model | registerForm = newRegisterForm, pageState = newPageState }, Cmd.none )
 
 
 
@@ -150,17 +181,17 @@ update msg model =
 
 view : Model -> Browser.Document Msg
 view model =
-    { title = "Elm 0.19 starter"
+    { title = "Elm Form"
     , body =
         case model.pageState of
             Registering ->
-                [ div []
+                [ div [ class "main" ]
                     [ registerFormView model
                     ]
                 ]
 
             ShowGoats ->
-                [ div [] [] ]
+                [ h1 [] [ text "Submitted!" ] ]
     }
 
 
@@ -179,11 +210,20 @@ registerFormView model =
                 Err errs ->
                     List.member err errs
     in
-    div []
+    div [ class "form" ]
         [ inputErrorField
             ageErrorField
             ageDecoder_
             registerForm.age
+        , requiredField registerForm.age.requiredCheck <| hasError AgeRequired
+        , input
+            [ placeholder "age"
+            , onInput UpdateAge
+            , onBlur BlurAge
+            , value <| registerForm.age.value
+            ]
+            []
+        , button [ onClick SubmitForm ] [ text "submit" ]
         ]
 
 
@@ -198,11 +238,20 @@ inputErrorField f d input =
                 List.map f errs
 
 
+requiredField : Bool -> Bool -> Html Msg
+requiredField requiredCheck hasRequiredError =
+    if requiredCheck && hasRequiredError then
+        p [] [ text "(required)" ]
+
+    else
+        emptyElement
+
+
 errorField : List (List String) -> Html msg
 errorField errs =
     List.map
         (wrap2
-            << List.map (\s -> p [ class "errorField_p" ] [ text s ])
+            << List.map (\s -> p [] [ text s ])
         )
         errs
         |> div
@@ -225,13 +274,13 @@ decodeField =
 optional : Decoder String err a -> Decoder Input err (Maybe a)
 optional d =
     Decoder.with <|
-        \(Input a) ->
-            case a of
+        \{ requiredCheck, value } ->
+            case value of
                 "" ->
                     Decoder.always Nothing
 
                 _ ->
-                    Decoder.lift inputToString <| Decoder.map Just <| d
+                    Decoder.lift .value <| Decoder.map Just <| d
 
 
 emptyElement : Html msg
