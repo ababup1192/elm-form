@@ -24,11 +24,16 @@ type PageState
     | ShowGoats
 
 
+{-| フォームの値を表す型 InputのRecord
+{ age = { requiredCheck: True, value = "15" } }
+-}
 type alias RegisterForm =
     { age : Input
     }
 
 
+{-| requiredCheckは、Blur時にTrueになる
+-}
 type alias Input =
     { requiredCheck : Bool, value : String }
 
@@ -38,6 +43,8 @@ inputEmpty =
     Input False ""
 
 
+{-| Decode後にマッピングされる型
+-}
 type alias Goat =
     { age : Age
     }
@@ -47,17 +54,16 @@ type Age
     = Age Int
 
 
-ageToString : Age -> String
-ageToString (Age n) =
-    String.fromInt n
-
-
+{-| FormDecoder
+-}
 decoder : Decoder RegisterForm Error Goat
 decoder =
     Decoder.map Goat
         decoderAge
 
 
+{-| Requiredのハンドリングを特別扱いしつつ、.ageにLiftする
+-}
 decoderAge : Decoder RegisterForm Error Age
 decoderAge =
     ageDecoder_
@@ -66,11 +72,15 @@ decoderAge =
         |> Decoder.lift .age
 
 
+{-| すべてのDecoderのエラーをまとめてる。Requiredを特別扱いしたいので外に出す。
+-}
 type Error
     = AgeError AgeError
     | AgeRequired
 
 
+{-| 空の値だったら、受け取ったRequiredErrorとする
+-}
 required : err -> Decoder String err a -> Decoder Input err a
 required err d =
     Decoder.with <|
@@ -83,6 +93,8 @@ required err d =
                     Decoder.lift .value d
 
 
+{-| IntにDecodeして、バリデーションして、Ageにmap
+-}
 ageDecoder_ : Decoder String AgeError Age
 ageDecoder_ =
     Decoder.int InvalidInt
@@ -140,24 +152,26 @@ update msg model =
     in
     case msg of
         UpdateAge age ->
-            let
-                newRegisterForm =
-                    { registerForm | age = Input registerForm.age.requiredCheck age }
-            in
-            ( { model | registerForm = newRegisterForm }, Cmd.none )
+            ( { model
+                | registerForm =
+                    setAge (setValue age registerForm.age) registerForm
+              }
+            , Cmd.none
+            )
 
         BlurAge ->
-            let
-                newRegisterForm =
-                    { registerForm | age = Input True registerForm.age.value }
-            in
-            ( { model | registerForm = newRegisterForm }, Cmd.none )
+            ( { model
+                | registerForm =
+                    setAge (enableRequrieCheck registerForm.age) registerForm
+              }
+            , Cmd.none
+            )
 
         SubmitForm ->
             let
                 newRegisterForm =
                     { registerForm
-                        | age = Input True registerForm.age.value
+                        | age = enableRequrieCheck registerForm.age
                     }
 
                 hasError =
@@ -171,6 +185,21 @@ update msg model =
                         ShowGoats
             in
             ( { model | registerForm = newRegisterForm, pageState = newPageState }, Cmd.none )
+
+
+setAge : Input -> RegisterForm -> RegisterForm
+setAge age registerForm =
+    { registerForm | age = age }
+
+
+setValue : String -> Input -> Input
+setValue newValue input =
+    { requiredCheck = input.requiredCheck, value = newValue }
+
+
+enableRequrieCheck : Input -> Input
+enableRequrieCheck input =
+    { requiredCheck = True, value = input.value }
 
 
 
