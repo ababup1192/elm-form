@@ -21,7 +21,6 @@ type alias Model =
 
 type PageState
     = Registering
-    | FixingRegisterErrors
     | ShowGoats
 
 
@@ -101,10 +100,24 @@ type AgeError
     | Negative
 
 
+ageErrorField : AgeError -> List String
+ageErrorField err =
+    case err of
+        InvalidInt ->
+            [ "Invalid input."
+            , "Please input integer."
+            ]
+
+        Negative ->
+            [ "Age must not be negative number."
+            , "Please input positive integer."
+            ]
+
+
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { registerForm =
-            { age = inputEmpty
+            { age = Input "1"
             }
       , pageState = Registering
       }
@@ -141,14 +154,89 @@ view model =
     , body =
         case model.pageState of
             Registering ->
-                [ div [] [] ]
-
-            FixingRegisterErrors ->
-                [ div [] [] ]
+                [ div []
+                    [ registerFormView model
+                    ]
+                ]
 
             ShowGoats ->
                 [ div [] [] ]
     }
+
+
+registerFormView : Model -> Html Msg
+registerFormView model =
+    let
+        { registerForm } =
+            model
+
+        hasError : Error -> Bool
+        hasError err =
+            case Decoder.run decoder registerForm of
+                Ok _ ->
+                    False
+
+                Err errs ->
+                    List.member err errs
+    in
+    div []
+        [ inputErrorField
+            ageErrorField
+            ageDecoder_
+            registerForm.age
+        ]
+
+
+inputErrorField : (err -> List String) -> Decoder String err a -> Input -> Html Msg
+inputErrorField f d input =
+    case decodeField d input of
+        Ok _ ->
+            emptyElement
+
+        Err errs ->
+            errorField <|
+                List.map f errs
+
+
+errorField : List (List String) -> Html msg
+errorField errs =
+    List.map
+        (wrap2
+            << List.map (\s -> p [ class "errorField_p" ] [ text s ])
+        )
+        errs
+        |> div
+            [ class "errorField"
+            ]
+
+
+wrap2 : List (Html msg) -> Html msg
+wrap2 children =
+    div
+        []
+        children
+
+
+decodeField : Decoder String err a -> Input -> Result (List err) (Maybe a)
+decodeField =
+    Decoder.run << optional
+
+
+optional : Decoder String err a -> Decoder Input err (Maybe a)
+optional d =
+    Decoder.with <|
+        \(Input a) ->
+            case a of
+                "" ->
+                    Decoder.always Nothing
+
+                _ ->
+                    Decoder.lift inputToString <| Decoder.map Just <| d
+
+
+emptyElement : Html msg
+emptyElement =
+    text ""
 
 
 
