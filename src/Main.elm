@@ -1,4 +1,4 @@
-module Main exposing (Age(..), Goat, decoder)
+module Main exposing (Age(..), AgeError(..), Error(..), Goat, ageDecoder_, ageErrorField, decoder)
 
 import Browser
 import Form.Decoder as Decoder exposing (Decoder)
