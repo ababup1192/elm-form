@@ -107,18 +107,14 @@ type AgeError
     | Negative
 
 
-ageErrorField : AgeError -> List String
+ageErrorField : AgeError -> String
 ageErrorField err =
     case err of
         InvalidInt ->
-            [ "Invalid input."
-            , "Please input integer."
-            ]
+            "Invalid input."
 
         Negative ->
-            [ "Age must not be negative number."
-            , "Please input positive integer."
-            ]
+            "Age must not be negative number."
 
 
 init : () -> ( Model, Cmd Msg )
@@ -244,7 +240,7 @@ registerFormView model =
             ageErrorField
             ageDecoder_
             registerForm.age
-        , requiredField registerForm.age.requiredCheck <| hasError AgeRequired
+            (hasError AgeRequired)
         , input
             [ placeholder "age"
             , onInput UpdateAge
@@ -256,43 +252,32 @@ registerFormView model =
         ]
 
 
-inputErrorField : (err -> List String) -> Decoder String err a -> Input -> Html Msg
-inputErrorField f d input =
+inputErrorField : (err -> String) -> Decoder String err a -> Input -> Bool -> Html Msg
+inputErrorField f d input hasRequiredErr =
     case decodeField d input of
         Ok _ ->
             emptyElement
 
         Err errs ->
-            errorField <|
-                List.map f errs
+            if hasRequiredErr then
+                errorField "(required)"
+
+            else
+                case List.head errs of
+                    Just err ->
+                        errorField <| f err
+
+                    Nothing ->
+                        emptyElement
 
 
-requiredField : Bool -> Bool -> Html Msg
-requiredField requiredCheck hasRequiredError =
-    if requiredCheck && hasRequiredError then
-        p [] [ text "(required)" ]
-
-    else
-        emptyElement
-
-
-errorField : List (List String) -> Html msg
-errorField errs =
-    List.map
-        (wrap2
-            << List.map (\s -> p [] [ text s ])
-        )
-        errs
-        |> div
-            [ class "errorField"
-            ]
-
-
-wrap2 : List (Html msg) -> Html msg
-wrap2 children =
+errorField : String -> Html msg
+errorField err =
     div
-        []
-        children
+        [ class "errorField"
+        ]
+        [ p [] [ text err ]
+        ]
 
 
 decodeField : Decoder String err a -> Input -> Result (List err) (Maybe a)
@@ -304,12 +289,20 @@ optional : Decoder String err a -> Decoder Input err (Maybe a)
 optional d =
     Decoder.with <|
         \{ requiredCheck, value } ->
-            case value of
+            let
+                liftValue =
+                    Decoder.lift .value <| Decoder.map Just d
+            in
+            case String.trim value of
                 "" ->
-                    Decoder.always Nothing
+                    if requiredCheck then
+                        liftValue
+
+                    else
+                        Decoder.always Nothing
 
                 _ ->
-                    Decoder.lift .value <| Decoder.map Just <| d
+                    liftValue
 
 
 emptyElement : Html msg
