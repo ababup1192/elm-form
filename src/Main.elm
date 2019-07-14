@@ -1,7 +1,10 @@
-module Main exposing (Age(..), AgeError(..), Error(..), Goat, ageDecoder_, ageErrorField, decoder, emptyElement, inputErrorField)
+module Main exposing (Model, Msg(..), PageState(..), emptyElement, enableRequrieCheck, errorField, init, inputErrorField, main, registerFormView, setAge, setValue, update, view)
 
 import Browser
 import Form.Decoder as Decoder exposing (Decoder)
+import FormUtil as FormUtil
+import Goat.Age as Age
+import Goat.Goat as Goat exposing (Error(..), RegisterForm)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
@@ -24,103 +27,10 @@ type PageState
     | ShowGoats
 
 
-{-| フォームの値を表す型 InputのRecord
-{ age = { requiredCheck: True, value = "15" } }
--}
-type alias RegisterForm =
-    { age : Input
-    }
-
-
-{-| requiredCheckは、Blur時にTrueになる
--}
-type alias Input =
-    { requiredCheck : Bool, value : String }
-
-
-inputEmpty : Input
-inputEmpty =
-    Input False ""
-
-
-{-| Decode後にマッピングされる型
--}
-type alias Goat =
-    { age : Age
-    }
-
-
-type Age
-    = Age Int
-
-
-{-| FormDecoder
--}
-decoder : Decoder RegisterForm Error Goat
-decoder =
-    Decoder.map Goat
-        decoderAge
-
-
-{-| Requiredのハンドリングを特別扱いしつつ、.ageにLiftする
--}
-decoderAge : Decoder RegisterForm Error Age
-decoderAge =
-    ageDecoder_
-        |> Decoder.mapError AgeError
-        |> required AgeRequired
-        |> Decoder.lift .age
-
-
-{-| すべてのDecoderのエラーをまとめてる。Requiredを特別扱いしたいので外に出す。
--}
-type Error
-    = AgeError AgeError
-    | AgeRequired
-
-
-{-| 空の値だったら、受け取ったRequiredErrorとする
--}
-required : err -> Decoder String err a -> Decoder Input err a
-required err d =
-    Decoder.with <|
-        \{ requiredCheck, value } ->
-            case value of
-                "" ->
-                    Decoder.fail err
-
-                _ ->
-                    Decoder.lift .value d
-
-
-{-| IntにDecodeして、バリデーションして、Ageにmap
--}
-ageDecoder_ : Decoder String AgeError Age
-ageDecoder_ =
-    Decoder.int InvalidInt
-        |> Decoder.assert (Decoder.minBound Negative 0)
-        |> Decoder.map Age
-
-
-type AgeError
-    = InvalidInt
-    | Negative
-
-
-ageErrorField : AgeError -> String
-ageErrorField err =
-    case err of
-        InvalidInt ->
-            "Invalid input."
-
-        Negative ->
-            "Age must not be negative number."
-
-
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { registerForm =
-            { age = inputEmpty
+            { age = FormUtil.empty
             }
       , pageState = Registering
       }
@@ -171,7 +81,7 @@ update msg model =
                     }
 
                 hasError =
-                    not <| List.isEmpty <| Decoder.errors decoder registerForm
+                    not <| List.isEmpty <| Decoder.errors Goat.decoder registerForm
 
                 newPageState =
                     if hasError then
@@ -183,17 +93,17 @@ update msg model =
             ( { model | registerForm = newRegisterForm, pageState = newPageState }, Cmd.none )
 
 
-setAge : Input -> RegisterForm -> RegisterForm
+setAge : FormUtil.Input -> RegisterForm -> RegisterForm
 setAge age registerForm =
     { registerForm | age = age }
 
 
-setValue : String -> Input -> Input
+setValue : String -> FormUtil.Input -> FormUtil.Input
 setValue newValue input =
     { requiredCheck = input.requiredCheck, value = newValue }
 
 
-enableRequrieCheck : Input -> Input
+enableRequrieCheck : FormUtil.Input -> FormUtil.Input
 enableRequrieCheck input =
     { requiredCheck = True, value = input.value }
 
@@ -226,9 +136,9 @@ registerFormView model =
         { registerForm } =
             model
 
-        hasError : Error -> Bool
+        hasError : Goat.Error -> Bool
         hasError err =
-            case Decoder.run decoder registerForm of
+            case Decoder.run Goat.decoder registerForm of
                 Ok _ ->
                     False
 
@@ -237,8 +147,8 @@ registerFormView model =
     in
     div [ class "form" ]
         [ inputErrorField
-            ageErrorField
-            ageDecoder_
+            Age.errorField
+            Age.decoder
             registerForm.age
             (hasError AgeRequired)
         , input
@@ -252,9 +162,9 @@ registerFormView model =
         ]
 
 
-inputErrorField : (err -> String) -> Decoder String err a -> Input -> Bool -> Html Msg
+inputErrorField : (err -> String) -> Decoder String err a -> FormUtil.Input -> Bool -> Html Msg
 inputErrorField f d input hasRequiredErr =
-    case decodeField d input of
+    case FormUtil.decodeField d input of
         Ok _ ->
             emptyElement
 
@@ -278,31 +188,6 @@ errorField err =
         ]
         [ p [] [ text err ]
         ]
-
-
-decodeField : Decoder String err a -> Input -> Result (List err) (Maybe a)
-decodeField =
-    Decoder.run << optional
-
-
-optional : Decoder String err a -> Decoder Input err (Maybe a)
-optional d =
-    Decoder.with <|
-        \{ requiredCheck, value } ->
-            let
-                liftValue =
-                    Decoder.lift .value <| Decoder.map Just d
-            in
-            case String.trim value of
-                "" ->
-                    if requiredCheck then
-                        liftValue
-
-                    else
-                        Decoder.always Nothing
-
-                _ ->
-                    liftValue
 
 
 emptyElement : Html msg
