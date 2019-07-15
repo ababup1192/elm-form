@@ -1,4 +1,4 @@
-module Goat.BirthDate exposing (BirthDate(..), Error(..), decoder, errorField)
+module Goat.BirthDate exposing (BirthDate(..), Error(..), SelectInt(..), decoder, errorField)
 
 import Form.Decoder as Decoder exposing (Decoder, Validator)
 
@@ -12,8 +12,23 @@ type alias BirthDate_ =
     { year : Int, month : Int, day : Int }
 
 
+type SelectInt
+    = UnSelected
+    | Select Int
+
+
+selectIntToInt : SelectInt -> Int
+selectIntToInt selectInt =
+    case selectInt of
+        UnSelected ->
+            -1
+
+        Select int ->
+            int
+
+
 type alias BirthDateForm =
-    { yearStr : String, monthStr : String, dayStr : String }
+    { year : SelectInt, month : SelectInt, day : SelectInt }
 
 
 decoder : Decoder BirthDateForm Error BirthDate
@@ -24,24 +39,29 @@ decoder =
             not << String.isEmpty
     in
     Decoder.with <|
-        \{ yearStr, monthStr, dayStr } ->
-            if List.all String.isEmpty [ yearStr, monthStr, dayStr ] then
-                Decoder.always BirthDateNothing
+        \{ year, month, day } ->
+            case ( year, month, day ) of
+                ( Select _, Select _, Select _ ) ->
+                    Decoder.map3 BirthDate_
+                        (Decoder.lift .year selectedIntDecoder)
+                        (Decoder.lift .month selectedIntDecoder)
+                        (Decoder.lift .day selectedIntDecoder)
+                        |> Decoder.map BirthDate
 
-            else if List.all stringDefined [ yearStr, monthStr, dayStr ] then
-                Decoder.map3 BirthDate_
-                    (Decoder.lift .yearStr <| Decoder.int InvalidInt)
-                    (Decoder.lift .monthStr <| Decoder.int InvalidInt)
-                    (Decoder.lift .dayStr <| Decoder.int InvalidInt)
-                    |> Decoder.map BirthDate
+                ( UnSelected, UnSelected, UnSelected ) ->
+                    Decoder.always BirthDateNothing
 
-            else
-                Decoder.fail MissingError
+                _ ->
+                    Decoder.fail MissingError
+
+
+selectedIntDecoder : Decoder SelectInt Error Int
+selectedIntDecoder =
+    Decoder.identity |> Decoder.map selectIntToInt
 
 
 type Error
-    = InvalidInt
-    | MissingError
+    = MissingError
 
 
 errorField : Error -> String
@@ -49,6 +69,3 @@ errorField err =
     case err of
         MissingError ->
             "Missing parameter."
-
-        _ ->
-            "Invalid input."

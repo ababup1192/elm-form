@@ -14,7 +14,7 @@ decoderTest =
             \_ ->
                 let
                     birthDateForm =
-                        { yearStr = "2019", monthStr = "4", dayStr = "1" }
+                        { year = Select 2019, month = Select 4, day = Select 1 }
                 in
                 Decoder.run decoder birthDateForm
                     |> Expect.equal (Ok <| BirthDate { year = 2019, month = 4, day = 1 })
@@ -22,7 +22,7 @@ decoderTest =
             \_ ->
                 let
                     birthDateForm =
-                        { yearStr = "", monthStr = "", dayStr = "" }
+                        { year = UnSelected, month = UnSelected, day = UnSelected }
                 in
                 Decoder.run decoder birthDateForm
                     |> Expect.equal (Ok BirthDateNothing)
@@ -30,20 +30,10 @@ decoderTest =
             \_ ->
                 let
                     birthDateForm =
-                        { yearStr = "2019", monthStr = "", dayStr = "1" }
+                        { year = Select 2019, month = UnSelected, day = Select 1 }
                 in
                 Decoder.run decoder birthDateForm
                     |> Expect.equal (Err <| [ MissingError ])
-
-        -- Inputの都合上起きない
-        , test "数値ではない場合、BirthDateのdecodeに失敗する" <|
-            \_ ->
-                let
-                    birthDateForm =
-                        { yearStr = "2019", monthStr = "4", dayStr = "a" }
-                in
-                Decoder.run decoder birthDateForm
-                    |> Expect.equal (Err <| [ InvalidInt ])
         ]
 
 
@@ -54,8 +44,4 @@ errorFieldTest =
             \_ ->
                 errorField MissingError
                     |> Expect.equal "Missing parameter."
-        , test "負の値に対するエラーメッセージ" <|
-            \_ ->
-                errorField InvalidInt
-                    |> Expect.equal "Invalid input."
         ]
