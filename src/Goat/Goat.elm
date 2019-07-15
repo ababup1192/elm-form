@@ -3,6 +3,7 @@ module Goat.Goat exposing (Error(..), Goat, RegisterForm, decoder)
 import Form.Decoder as Decoder exposing (Decoder)
 import FormUtil as FormUtil
 import Goat.Age as Age exposing (Age)
+import Goat.BirthDate
 
 
 {-| フォームの値を表す型 InputのRecord

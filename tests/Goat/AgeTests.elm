@@ -42,18 +42,10 @@ errorFieldTest =
     describe "Goat.Age.errorField"
         [ test "数値変換エラーに対するメッセージ" <|
             \_ ->
-                let
-                    str =
-                        "15"
-                in
                 errorField InvalidInt
                     |> Expect.equal "Invalid input."
         , test "負の値に対するエラーメッセージ" <|
             \_ ->
-                let
-                    str =
-                        "15"
-                in
                 errorField Negative
                     |> Expect.equal "Age must not be negative number."
         ]
